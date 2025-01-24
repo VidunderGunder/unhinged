@@ -6,8 +6,9 @@ interface Message {
 	id: number;
 	text: string;
 	timeoutId: ReturnType<typeof setTimeout>;
-	response?: string;
-	showResponse?: boolean;
+	replies: { text: string; correct: boolean }[];
+	startTime: number;
+	timeLeft: number;
 }
 
 export type GameProps = ComponentProps<"div">;
@@ -37,21 +38,47 @@ interface GirlState {
 	velocity: { dx: number; dy: number };
 }
 
+type RepliesMap = {
+	[key: string]: {
+		correct: string[];
+		wrong: string;
+	};
+};
+
+const REPLIES_MAP: RepliesMap = {
+	"Do you still love me? uwu": {
+		correct: ["Of course I do! 💕", "You're my everything! 💖"],
+		wrong: "Not really...",
+	},
+	"Why aren't you replying? >_<": {
+		correct: ["I'm here now! 🤗", "Sorry, I was busy! 🥺"],
+		wrong: "I was ignoring you.",
+	},
+	"Am I annoying you? ;_;": {
+		correct: ["Not at all! ✨", "I love talking to you! 💞"],
+		wrong: "Yes, you are.",
+	},
+	"You don't care anymore, do you? T_T": {
+		correct: ["I care so much! 💝", "Never doubt that! 💗"],
+		wrong: "Maybe I don't.",
+	},
+	"I guess I'm not important... :(": {
+		correct: ["You're important! 💖", "You mean the world to me! 🌟"],
+		wrong: "You're not.",
+	},
+};
+
 export function Game({ className, ...props }: GameProps) {
 	const [showWarning, setShowWarning] = useState(true);
 	const [messages, setMessages] = useState<Message[]>([]);
-
-	useEffect(() => {
-		const timer = setTimeout(() => {
-			setShowWarning(false);
-		}, 5000);
-		return () => clearTimeout(timer);
-	}, []);
+	const [survivalTime, setSurvivalTime] = useState(0);
+	const [highscores, setHighscores] = useState<number[]>([]);
+	const [gameOver, setGameOver] = useState(false);
 
 	const [girls, setGirls] = useState<GirlState[]>(() =>
 		assets.map((asset) => ({
 			id: asset.id,
-			angryLevel: 100, // Start at 100% happiness
+			angryLevel: 100,
 			position: {
 				x: Math.random() * (window.innerWidth - 100),
 				y: Math.random() * (window.innerHeight - 100),
@@ -63,88 +90,120 @@ export function Game({ className, ...props }: GameProps) {
 		})),
 	);
 
-	const [gameOver, setGameOver] = useState(false);
+	// Load highscores
+	useEffect(() => {
+		const saved = localStorage.getItem("highscores");
+		if (saved) setHighscores(JSON.parse(saved));
+	}, []);
 
-	// Clear message timeouts when game over
+	// Survival timer
+	useEffect(() => {
+		if (gameOver) return;
+		const interval = setInterval(() => {
+			setSurvivalTime((prev) => prev + 1);
+		}, 1000);
+		return () => clearInterval(interval);
+	}, [gameOver]);
+
+	// Message time left updates
+	useEffect(() => {
+		if (gameOver) return;
+		const interval = setInterval(() => {
+			setMessages((prev) =>
+				prev.map((message) => ({
+					...message,
+					timeLeft: Math.max(
+						0,
+						100 - ((Date.now() - message.startTime) / 5000) * 100,
+					),
+				})),
+			);
+		}, 100);
+		return () => clearInterval(interval);
+	}, [gameOver]);
+
+	// Game over handler
 	useEffect(() => {
 		if (gameOver) {
-			messages.forEach((message) => clearTimeout(message.timeoutId));
-			setMessages([]);
+			const newHighscores = Array.from(new Set([...highscores, survivalTime]))
+				.sort((a, b) => b - a)
+				.slice(0, 10);
+			localStorage.setItem("highscores", JSON.stringify(newHighscores));
+			setHighscores(newHighscores);
 		}
-	}, [gameOver, messages]);
+	}, [gameOver, highscores, survivalTime]);
 
-	// Generate random messages
+	// Initial warning timer
+	useEffect(() => {
+		const timer = setTimeout(() => setShowWarning(false), 5000);
+		return () => clearTimeout(timer);
+	}, []);
+
+	const getReplies = useCallback((messageText: string) => {
+		const { correct, wrong } = REPLIES_MAP[messageText];
+		return [...correct, wrong]
+			.sort(() => Math.random() - 0.5)
+			.map((text) => ({
+				text,
+				correct: correct.includes(text),
+			}));
+	}, []);
+
+	// Message generation
 	useEffect(() => {
 		if (gameOver) return;
 
 		const messageInterval = setInterval(
 			() => {
-				const messageTexts = [
-					"Do you still love me? uwu",
-					"Why aren't you replying? >_<",
-					"Am I annoying you? ;_;",
-					"You don't care anymore, do you? T_T",
-					"I guess I'm not important... :(",
-				];
+				const messageTexts = Object.keys(REPLIES_MAP);
 				const text =
 					messageTexts[Math.floor(Math.random() * messageTexts.length)];
 				const id = Date.now();
+				const timeoutId = setTimeout(() => setGameOver(true), 5000);
+				const replies = getReplies(text);
 
-				const timeoutId = setTimeout(() => {
-					setGameOver(true);
-				}, 5000);
-
-				setMessages((prev) => [...prev, { id, text, timeoutId }]);
+				setMessages((prev) => [
+					...prev,
+					{
+						id,
+						text,
+						timeoutId,
+						replies,
+						startTime: Date.now(),
+						timeLeft: 100,
+					},
+				]);
 			},
 			Math.random() * 20000 + 10000,
-		); // 10-30 seconds
+		);
 
 		return () => clearInterval(messageInterval);
-	}, [gameOver]);
+	}, [gameOver, getReplies]);
 
-	// Handle message reply
-	const handleReply = useCallback((id: number) => {
+	// Reply handling
+	// Reply handling
+	const handleReply = useCallback((id: number, correct: boolean) => {
+		if (!correct) {
+			setGameOver(true);
+			return;
+		}
+
 		setMessages((prev) => {
+			// Clear the timeout before removing the message
 			const message = prev.find((m) => m.id === id);
-			if (!message) return prev;
-
-			if (message.showResponse) {
-				clearTimeout(message.timeoutId);
-				return prev.filter((m) => m.id !== id);
-			}
-
-			const responses = {
-				"Do you still love me? uwu":
-					"Of course I do! You're very special to me! 💕",
-				"Why aren't you replying? >_<":
-					"I'm here now! Sorry for making you wait! 🤗",
-				"Am I annoying you? ;_;": "Not at all! I enjoy talking with you! ✨",
-				"You don't care anymore, do you? T_T":
-					"I care about you very much! Don't think that way! 💝",
-				"I guess I'm not important... :(":
-					"You're absolutely important to me! Never doubt that! 💖",
-			};
-
-			const updatedMessages = prev.map((m) => {
-				if (m.id === id) {
-					clearTimeout(m.timeoutId);
-					const newTimeoutId = setTimeout(() => {
-						setMessages((current) => current.filter((cm) => cm.id !== id));
-					}, 3000);
-					return {
-						...m,
-						response: responses[m.text as keyof typeof responses],
-						showResponse: true,
-						timeoutId: newTimeoutId,
-					};
-				}
-				return m;
-			});
-
-			return updatedMessages;
+			if (message) clearTimeout(message.timeoutId);
+			return prev.filter((m) => m.id !== id);
 		});
+
+		setGirls((prev) =>
+			prev.map((girl) => ({
+				...girl,
+				angryLevel: Math.min(girl.angryLevel + 10, 100),
+			})),
+		);
 	}, []);
 
+	// Girl clicking
 	const handleGirlClick = useCallback((id: number) => {
 		setGirls((prev) =>
 			prev.map((girl) =>
@@ -155,32 +214,37 @@ export function Game({ className, ...props }: GameProps) {
 		);
 	}, []);
 
+	// Movement system
 	useEffect(() => {
 		if (gameOver) return;
 
 		const moveInterval = setInterval(() => {
 			setGirls((prev) =>
 				prev.map((girl) => {
-					let newX = girl.position.x + girl.velocity.dx;
-					let newY = girl.position.y + girl.velocity.dy;
+					const speedMultiplier = 1 + (100 - girl.angryLevel) / 100;
+					let newX = girl.position.x + girl.velocity.dx * speedMultiplier;
+					let newY = girl.position.y + girl.velocity.dy * speedMultiplier;
 
 					if (newX < 0 || newX > window.innerWidth - 100) {
 						newX = Math.max(0, Math.min(newX, window.innerWidth - 100));
-						girl.velocity.dx *= -1;
+						girl.velocity.dx = (Math.random() - 0.5) * 4 * speedMultiplier;
 					}
 					if (newY < 0 || newY > window.innerHeight - 100) {
 						newY = Math.max(0, Math.min(newY, window.innerHeight - 100));
-						girl.velocity.dy *= -1;
+						girl.velocity.dy = (Math.random() - 0.5) * 4 * speedMultiplier;
 					}
 
-					return {
-						...girl,
-						position: { x: newX, y: newY },
-					};
+					return { ...girl, position: { x: newX, y: newY } };
 				}),
 			);
 		}, 16);
 
+		return () => clearInterval(moveInterval);
+	}, [gameOver]);
+
+	// Anger system
+	useEffect(() => {
+		if (gameOver) return;
 		const angerInterval = setInterval(() => {
 			setGirls((prev) =>
 				prev.map((girl) => ({
@@ -189,22 +253,17 @@ export function Game({ className, ...props }: GameProps) {
 				})),
 			);
 		}, 1000);
-
-		return () => {
-			clearInterval(moveInterval);
-			clearInterval(angerInterval);
-		};
+		return () => clearInterval(angerInterval);
 	}, [gameOver]);
 
+	// Game over check
 	useEffect(() => {
-		if (girls.some((girl) => girl.angryLevel <= 0)) {
-			setGameOver(true);
-		}
+		if (girls.some((girl) => girl.angryLevel <= 0)) setGameOver(true);
 	}, [girls]);
 
 	return (
 		<div
-			className={cn("relative h-full w-full bg-gray-900", className)}
+			className={cn("u relative h-full w-full bg-gray-900", className)}
 			{...props}
 		>
 			{showWarning && (
@@ -219,6 +278,13 @@ export function Game({ className, ...props }: GameProps) {
 					</div>
 				</div>
 			)}
+
+			{/* Survival Timer */}
+			<div className="fixed top-4 left-4 z-30 select-none font-bold text-white text-xl">
+				Time: {Math.floor(survivalTime / 60)}:
+				{String(survivalTime % 60).padStart(2, "0")}
+			</div>
+
 			{girls.map((girl) => {
 				const asset = assets.find((a) => a.id === girl.id);
 				if (!asset) return null;
@@ -227,13 +293,9 @@ export function Game({ className, ...props }: GameProps) {
 					<div
 						key={girl.id}
 						className="absolute"
-						style={{
-							left: girl.position.x,
-							top: girl.position.y,
-						}}
+						style={{ left: girl.position.x, top: girl.position.y }}
 					>
 						<div className="relative">
-							{/* Angry Level Bar */}
 							<div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center">
 								<div className="h-2 w-full rounded-full bg-gray-700/50">
 									<div
@@ -264,35 +326,87 @@ export function Game({ className, ...props }: GameProps) {
 				);
 			})}
 
-			{/* Messages display */}
+			{/* Messages */}
 			<div className="fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center space-y-2 p-4">
 				{messages.map((message) => (
 					<div
 						key={message.id}
-						className="flex flex-col space-y-2 rounded-lg bg-gray-800 p-3 text-white shadow-lg"
+						className="w-full max-w-md rounded-lg bg-gray-800 p-3 text-white shadow-lg"
 					>
-						<div className="flex items-center space-x-3">
+						<div className="mb-2 flex items-center justify-between">
 							<span className="text-sm">{message.text}</span>
-							<button
-								type="button"
-								onClick={() => handleReply(message.id)}
-								className="rounded bg-blue-500 px-3 py-1 text-sm transition-colors hover:bg-blue-600"
-							>
-								{message.showResponse ? "Dismiss" : "Reply"}
-							</button>
 						</div>
-						{message.showResponse && (
-							<div className="animate-fade-in text-green-400 text-sm">
-								{message.response}
-							</div>
-						)}
+						<div className="h-1 w-full overflow-hidden rounded-full bg-gray-600">
+							<div
+								className="h-full bg-blue-500 transition-all duration-100"
+								style={{ width: `${message.timeLeft}%` }}
+							/>
+						</div>
+						<div className="mt-2 flex gap-2">
+							{message.replies.map((reply) => (
+								<button
+									key={reply.text}
+									type="button"
+									onClick={() => handleReply(message.id, reply.correct)}
+									className={cn(
+										"flex-1 rounded px-2 py-1 text-sm transition-colors",
+									)}
+								>
+									{reply.text}
+								</button>
+							))}
+						</div>
 					</div>
 				))}
 			</div>
 
+			{/* Game Over Screen */}
 			{gameOver && (
-				<div className="fixed inset-0 flex items-center justify-center bg-black/50">
-					<div className="font-bold text-4xl text-white">GAME OVER!</div>
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+					<div className="w-full max-w-md rounded-lg bg-gray-800 p-6 text-center">
+						<div className="s mb-4 select-none font-bold text-4xl text-white">
+							GAME OVER!
+						</div>
+						<div className="mb-4 select-none text-white text-xl">
+							Survived: {Math.floor(survivalTime / 60)}:
+							{String(survivalTime % 60).padStart(2, "0")}
+						</div>
+						<div className="mb-2 text-lg text-white">High Scores:</div>
+						<div className="select-none space-y-1">
+							{highscores.map((score, index) => (
+								// biome-ignore lint/suspicious/noArrayIndexKey: <meh>
+								<div key={index} className="text-white">
+									{index + 1}. {Math.floor(score / 60)}:
+									{String(score % 60).padStart(2, "0")}
+								</div>
+							))}
+						</div>
+						<button
+							type="button"
+							onClick={() => {
+								setGameOver(false);
+								setSurvivalTime(0);
+								setMessages([]);
+								setGirls(
+									assets.map((asset) => ({
+										id: asset.id,
+										angryLevel: 100,
+										position: {
+											x: Math.random() * (window.innerWidth - 100),
+											y: Math.random() * (window.innerHeight - 100),
+										},
+										velocity: {
+											dx: (Math.random() - 0.5) * 4,
+											dy: (Math.random() - 0.5) * 4,
+										},
+									})),
+								);
+							}}
+							className="mt-4 w-full rounded-lg bg-blue-500 px-4 py-2 font-bold text-white transition-colors hover:bg-blue-600"
+						>
+							Restart Game
+						</button>
+					</div>
 				</div>
 			)}
 		</div>
