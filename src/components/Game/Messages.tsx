@@ -63,8 +63,8 @@ export function Messages({
 										>
 											{/* Girl's Message */}
 											<div className="flex justify-start">
-												<div className="relative max-w-[75%] rounded-2xl bg-gray-800 p-3 text-gray-100 text-sm shadow-md">
-													<div className="-left-1.5 absolute top-3 h-3 w-3 rotate-45 transform bg-gray-800" />
+												<div className="relative max-w-[75%] rounded-2xl bg-gray-800 px-3.5 py-2 text-gray-100 text-sm shadow-md">
+													<div className="-left-1 absolute top-3 h-2 w-3 rotate-45 transform bg-gray-800" />
 													<div className="relative z-10">{message.text}</div>
 													<div className="-bottom-1 absolute right-0 left-0 h-1 rounded-full bg-gray-700">
 														<div
@@ -87,8 +87,8 @@ export function Messages({
 														className="group flex w-full justify-end"
 														whileTap={{ scale: 0.95 }}
 													>
-														<div className="relative max-w-[75%] rounded-2xl bg-blue-600 p-3 text-sm text-white shadow-md transition-all group-hover:bg-blue-700">
-															<div className="-right-1.5 absolute top-4 h-2 w-4 rotate-45 transform bg-blue-600 group-hover:bg-blue-700" />
+														<div className="relative max-w-[75%] rounded-2xl bg-blue-600 px-3.5 py-2 text-left text-sm text-white shadow-md transition-all group-hover:bg-blue-700">
+															<div className="-right-1 absolute top-3 h-2 w-3 rotate-45 transform bg-blue-600 group-hover:bg-blue-700" />
 															<div className="relative z-10">{reply.text}</div>
 														</div>
 													</motion.button>
