@@ -1,72 +1,26 @@
 import type { ComponentProps } from "react";
 import { useEffect, useState, useCallback } from "react";
-import { cn } from "../styles/utils";
+import { cn } from "../../styles/utils";
+import { repliesMap } from "./repliesMap";
+import { assets } from "./assets";
 
-interface Message {
+type Message = {
 	id: number;
 	text: string;
 	timeoutId: ReturnType<typeof setTimeout>;
 	replies: { text: string; correct: boolean }[];
 	startTime: number;
 	timeLeft: number;
-}
+};
 
-export type GameProps = ComponentProps<"div">;
-
-const assets = [
-	{
-		id: 1,
-		angry: "/angry-1.jpg",
-		happy: "/happy-1.jpg",
-	},
-	{
-		id: 2,
-		angry: "/angry-2.jpg",
-		happy: "/happy-2.jpg",
-	},
-	{
-		id: 3,
-		angry: "/angry-3.jpg",
-		happy: "/happy-3.jpg",
-	},
-];
-
-interface GirlState {
+type GirlState = {
 	id: number;
 	angryLevel: number;
 	position: { x: number; y: number };
 	velocity: { dx: number; dy: number };
-}
-
-type RepliesMap = {
-	[key: string]: {
-		correct: string[];
-		wrong: string;
-	};
 };
 
-const REPLIES_MAP: RepliesMap = {
-	"Do you still love me? uwu": {
-		correct: ["Of course I do! 💕", "You're my everything! 💖"],
-		wrong: "Not really...",
-	},
-	"Why aren't you replying? >_<": {
-		correct: ["I'm here now! 🤗", "Sorry, I was busy! 🥺"],
-		wrong: "I was ignoring you.",
-	},
-	"Am I annoying you? ;_;": {
-		correct: ["Not at all! ✨", "I love talking to you! 💞"],
-		wrong: "Yes, you are.",
-	},
-	"You don't care anymore, do you? T_T": {
-		correct: ["I care so much! 💝", "Never doubt that! 💗"],
-		wrong: "Maybe I don't.",
-	},
-	"I guess I'm not important... :(": {
-		correct: ["You're important! 💖", "You mean the world to me! 🌟"],
-		wrong: "You're not.",
-	},
-};
+export type GameProps = ComponentProps<"div">;
 
 export function Game({ className, ...props }: GameProps) {
 	const [showWarning, setShowWarning] = useState(true);
@@ -140,7 +94,7 @@ export function Game({ className, ...props }: GameProps) {
 	}, []);
 
 	const getReplies = useCallback((messageText: string) => {
-		const { correct, wrong } = REPLIES_MAP[messageText];
+		const { correct, wrong } = repliesMap[messageText];
 		return [...correct, wrong]
 			.sort(() => Math.random() - 0.5)
 			.map((text) => ({
@@ -155,7 +109,7 @@ export function Game({ className, ...props }: GameProps) {
 
 		const messageInterval = setInterval(
 			() => {
-				const messageTexts = Object.keys(REPLIES_MAP);
+				const messageTexts = Object.keys(repliesMap);
 				const text =
 					messageTexts[Math.floor(Math.random() * messageTexts.length)];
 				const id = Date.now();
