@@ -3,22 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 import { cn } from "../../styles/utils";
 import { repliesMap } from "./repliesMap";
 import { assets } from "./assets";
-
-type Message = {
-	id: number;
-	text: string;
-	timeoutId: ReturnType<typeof setTimeout>;
-	replies: { text: string; correct: boolean }[];
-	startTime: number;
-	timeLeft: number;
-};
-
-type GirlState = {
-	id: number;
-	angryLevel: number;
-	position: { x: number; y: number };
-	velocity: { dx: number; dy: number };
-};
+import type { GirlState, Message } from "./types";
+import { Messages } from "./Messages";
 
 export type GameProps = ComponentProps<"div">;
 
@@ -29,19 +15,24 @@ export function Game({ className, ...props }: GameProps) {
 	const [highscores, setHighscores] = useState<number[]>([]);
 	const [gameOver, setGameOver] = useState(false);
 
+	const [activeGirlIds, setActiveGirlIds] = useState([1, 2]);
+	const [isPlaying, setIsPlaying] = useState(false);
+
 	const [girls, setGirls] = useState<GirlState[]>(() =>
-		assets.map((asset) => ({
-			id: asset.id,
-			angryLevel: 100,
-			position: {
-				x: Math.random() * (window.innerWidth - 100),
-				y: Math.random() * (window.innerHeight - 100),
-			},
-			velocity: {
-				dx: (Math.random() - 0.5) * 4,
-				dy: (Math.random() - 0.5) * 4,
-			},
-		})),
+		assets
+			.filter((asset) => activeGirlIds.includes(asset.id))
+			.map((asset) => ({
+				id: asset.id,
+				happiness: 100,
+				position: {
+					x: Math.random() * (window.innerWidth - 100),
+					y: Math.random() * (window.innerHeight - 100),
+				},
+				velocity: {
+					dx: (Math.random() - 0.5) * 4,
+					dy: (Math.random() - 0.5) * 4,
+				},
+			})),
 	);
 
 	// Load highscores
@@ -50,18 +41,60 @@ export function Game({ className, ...props }: GameProps) {
 		if (saved) setHighscores(JSON.parse(saved));
 	}, []);
 
+	// Add new girl every minute
+	useEffect(() => {
+		if (!isPlaying || gameOver) return;
+		if (survivalTime > 0 && survivalTime % 30 === 0) {
+			setActiveGirlIds((prev) => {
+				if (prev.length >= assets.length) return prev;
+				const nextId = assets[prev.length].id;
+				return [...prev, nextId];
+			});
+		}
+	}, [survivalTime, gameOver, isPlaying]);
+
+	// Update girls when activeGirlIds changes
+	useEffect(() => {
+		const currentGirlIds = girls.map((g) => g.id);
+		const newIds = activeGirlIds.filter((id) => !currentGirlIds.includes(id));
+
+		if (newIds.length === 0) return;
+
+		const newGirls = newIds
+			.map((id) => {
+				const asset = assets.find((a) => a.id === id);
+				return asset
+					? {
+							id: asset.id,
+							happiness: 100,
+							position: {
+								x: Math.random() * (window.innerWidth - 100),
+								y: Math.random() * (window.innerHeight - 100),
+							},
+							velocity: {
+								dx: (Math.random() - 0.5) * 4,
+								dy: (Math.random() - 0.5) * 4,
+							},
+						}
+					: null;
+			})
+			.filter(Boolean) as GirlState[];
+
+		setGirls((prev) => [...prev, ...newGirls]);
+	}, [activeGirlIds, girls]);
+
 	// Survival timer
 	useEffect(() => {
-		if (gameOver) return;
+		if (gameOver || !isPlaying) return;
 		const interval = setInterval(() => {
 			setSurvivalTime((prev) => prev + 1);
 		}, 1000);
 		return () => clearInterval(interval);
-	}, [gameOver]);
+	}, [gameOver, isPlaying]);
 
 	// Message time left updates
 	useEffect(() => {
-		if (gameOver) return;
+		if (gameOver || !isPlaying) return;
 		const interval = setInterval(() => {
 			setMessages((prev) =>
 				prev.map((message) => ({
@@ -74,7 +107,7 @@ export function Game({ className, ...props }: GameProps) {
 			);
 		}, 100);
 		return () => clearInterval(interval);
-	}, [gameOver]);
+	}, [gameOver, isPlaying]);
 
 	// Game over handler
 	useEffect(() => {
@@ -86,12 +119,6 @@ export function Game({ className, ...props }: GameProps) {
 			setHighscores(newHighscores);
 		}
 	}, [gameOver, highscores, survivalTime]);
-
-	// Initial warning timer
-	useEffect(() => {
-		const timer = setTimeout(() => setShowWarning(false), 5000);
-		return () => clearTimeout(timer);
-	}, []);
 
 	const getReplies = useCallback((messageText: string) => {
 		const { correct, wrong } = repliesMap[messageText];
@@ -105,7 +132,7 @@ export function Game({ className, ...props }: GameProps) {
 
 	// Message generation
 	useEffect(() => {
-		if (gameOver) return;
+		if (gameOver || !isPlaying) return;
 
 		const messageInterval = setInterval(
 			() => {
@@ -132,9 +159,8 @@ export function Game({ className, ...props }: GameProps) {
 		);
 
 		return () => clearInterval(messageInterval);
-	}, [gameOver, getReplies]);
+	}, [gameOver, getReplies, isPlaying]);
 
-	// Reply handling
 	// Reply handling
 	const handleReply = useCallback((id: number, correct: boolean) => {
 		if (!correct) {
@@ -143,7 +169,6 @@ export function Game({ className, ...props }: GameProps) {
 		}
 
 		setMessages((prev) => {
-			// Clear the timeout before removing the message
 			const message = prev.find((m) => m.id === id);
 			if (message) clearTimeout(message.timeoutId);
 			return prev.filter((m) => m.id !== id);
@@ -152,7 +177,7 @@ export function Game({ className, ...props }: GameProps) {
 		setGirls((prev) =>
 			prev.map((girl) => ({
 				...girl,
-				angryLevel: Math.min(girl.angryLevel + 10, 100),
+				happiness: Math.min(girl.happiness + 10, 100),
 			})),
 		);
 	}, []);
@@ -162,7 +187,7 @@ export function Game({ className, ...props }: GameProps) {
 		setGirls((prev) =>
 			prev.map((girl) =>
 				girl.id === id
-					? { ...girl, angryLevel: Math.min(girl.angryLevel + 20, 100) }
+					? { ...girl, happiness: Math.min(girl.happiness + 20, 100) }
 					: girl,
 			),
 		);
@@ -170,12 +195,12 @@ export function Game({ className, ...props }: GameProps) {
 
 	// Movement system
 	useEffect(() => {
-		if (gameOver) return;
+		if (gameOver || !isPlaying) return;
 
 		const moveInterval = setInterval(() => {
 			setGirls((prev) =>
 				prev.map((girl) => {
-					const speedMultiplier = 1 + (100 - girl.angryLevel) / 100;
+					const speedMultiplier = 1 + (100 - girl.happiness) / 100;
 					let newX = girl.position.x + girl.velocity.dx * speedMultiplier;
 					let newY = girl.position.y + girl.velocity.dy * speedMultiplier;
 
@@ -194,30 +219,30 @@ export function Game({ className, ...props }: GameProps) {
 		}, 16);
 
 		return () => clearInterval(moveInterval);
-	}, [gameOver]);
+	}, [gameOver, isPlaying]);
 
-	// Anger system
+	// Happiness depletion system
 	useEffect(() => {
-		if (gameOver) return;
-		const angerInterval = setInterval(() => {
+		if (gameOver || !isPlaying) return;
+		const interval = setInterval(() => {
 			setGirls((prev) =>
 				prev.map((girl) => ({
 					...girl,
-					angryLevel: Math.max(girl.angryLevel - 8, 0),
+					happiness: Math.max(girl.happiness - 8, 0),
 				})),
 			);
 		}, 1000);
-		return () => clearInterval(angerInterval);
-	}, [gameOver]);
+		return () => clearInterval(interval);
+	}, [gameOver, isPlaying]);
 
 	// Game over check
 	useEffect(() => {
-		if (girls.some((girl) => girl.angryLevel <= 0)) setGameOver(true);
+		if (girls.some((girl) => girl.happiness <= 0)) setGameOver(true);
 	}, [girls]);
 
 	return (
 		<div
-			className={cn("u relative h-full w-full bg-gray-900", className)}
+			className={cn("relative h-full w-full bg-gray-900", className)}
 			{...props}
 		>
 			{showWarning && (
@@ -226,14 +251,23 @@ export function Game({ className, ...props }: GameProps) {
 						<h2 className="mb-4 font-bold text-2xl text-red-500">WARNING!</h2>
 						<p className="text-lg">
 							The goth girls demand your attention! Click on them to keep their
-							anger levels down. If any girl's anger reaches maximum, it's GAME
+							happiness up. If any girl's happiness reaches zero, it's GAME
 							OVER!
 						</p>
+						<button
+							type="button"
+							onClick={() => {
+								setShowWarning(false);
+								setIsPlaying(true);
+							}}
+							className="mt-4 rounded-lg bg-blue-500 px-4 py-2 font-bold text-white transition-colors hover:bg-blue-600"
+						>
+							Begin
+						</button>
 					</div>
 				</div>
 			)}
 
-			{/* Survival Timer */}
 			<div className="fixed top-4 left-4 z-30 select-none font-bold text-white text-xl">
 				Time: {Math.floor(survivalTime / 60)}:
 				{String(survivalTime % 60).padStart(2, "0")}
@@ -255,11 +289,11 @@ export function Game({ className, ...props }: GameProps) {
 									<div
 										className={cn(
 											"h-full rounded-full transition-all duration-300",
-											girl.angryLevel >= 50
+											girl.happiness >= 50
 												? "bg-green-500/50"
 												: "bg-red-500/50",
 										)}
-										style={{ width: `${girl.angryLevel}%` }}
+										style={{ width: `${girl.happiness}%` }}
 									/>
 								</div>
 							</div>
@@ -269,9 +303,12 @@ export function Game({ className, ...props }: GameProps) {
 								className="h-[100px] w-[100px] cursor-pointer select-none overflow-hidden rounded-xl transition-transform duration-300 hover:scale-110"
 							>
 								<img
-									src={girl.angryLevel >= 50 ? asset.happy : asset.angry}
+									src={girl.happiness >= 50 ? asset.happy : asset.angry}
 									alt="Goth girl"
-									className="select-none"
+									className={cn(
+										"h-full w-full select-none object-cover",
+										girl.happiness < 20 && "animate-shake",
+									)}
 									draggable="false"
 								/>
 							</button>
@@ -280,53 +317,12 @@ export function Game({ className, ...props }: GameProps) {
 				);
 			})}
 
-			{/* Messages */}
-			<div className="fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center space-y-2 p-4">
-				{messages.map((message) => (
-					<div key={message.id} className="w-full max-w-md space-y-3 px-4">
-						{/* Girl's Message */}
-						<div className="flex justify-start">
-							<div className="relative max-w-[85%] rounded-xl bg-gray-800 p-3 text-sm text-white shadow-md">
-								{/* Chat bubble tail */}
-								<div className="-left-1.5 absolute top-3 h-3 w-3 rotate-45 transform bg-gray-800" />
-								<div className="relative z-10">{message.text}</div>
+			<Messages messages={messages} handleReply={handleReply} />
 
-								{/* Time progress bar */}
-								<div className="-bottom-1 absolute right-0 left-0 h-1 rounded-full bg-gray-700">
-									<div
-										className="h-full rounded-full bg-blue-500 transition-all duration-100"
-										style={{ width: `${message.timeLeft}%` }}
-									/>
-								</div>
-							</div>
-						</div>
-
-						{/* User Replies */}
-						<div className="space-y-2">
-							{message.replies.map((reply) => (
-								<button
-									key={reply.text}
-									type="button"
-									onClick={() => handleReply(message.id, reply.correct)}
-									className="flex w-full justify-end"
-								>
-									<div className="relative max-w-[85%] rounded-xl bg-blue-600 p-3 text-sm text-white shadow-md transition-colors hover:bg-blue-700">
-										{/* Chat bubble tail */}
-										<div className="-right-1.5 absolute top-3 h-3 w-3 rotate-45 transform bg-blue-600" />
-										<div className="relative z-10">{reply.text}</div>
-									</div>
-								</button>
-							))}
-						</div>
-					</div>
-				))}
-			</div>
-
-			{/* Game Over Screen */}
 			{gameOver && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
 					<div className="w-full max-w-md rounded-lg bg-gray-800 p-6 text-center">
-						<div className="s mb-4 select-none font-bold text-4xl text-white">
+						<div className="mb-4 select-none font-bold text-4xl text-white">
 							GAME OVER!
 						</div>
 						<div className="mb-4 select-none text-white text-xl">
@@ -349,19 +345,22 @@ export function Game({ className, ...props }: GameProps) {
 								setGameOver(false);
 								setSurvivalTime(0);
 								setMessages([]);
+								setActiveGirlIds([1, 2]);
 								setGirls(
-									assets.map((asset) => ({
-										id: asset.id,
-										angryLevel: 100,
-										position: {
-											x: Math.random() * (window.innerWidth - 100),
-											y: Math.random() * (window.innerHeight - 100),
-										},
-										velocity: {
-											dx: (Math.random() - 0.5) * 4,
-											dy: (Math.random() - 0.5) * 4,
-										},
-									})),
+									assets
+										.filter((a) => [1, 2].includes(a.id))
+										.map((asset) => ({
+											id: asset.id,
+											happiness: 100,
+											position: {
+												x: Math.random() * (window.innerWidth - 100),
+												y: Math.random() * (window.innerHeight - 100),
+											},
+											velocity: {
+												dx: (Math.random() - 0.5) * 4,
+												dy: (Math.random() - 0.5) * 4,
+											},
+										})),
 								);
 							}}
 							className="mt-4 w-full rounded-lg bg-blue-500 px-4 py-2 font-bold text-white transition-colors hover:bg-blue-600"
