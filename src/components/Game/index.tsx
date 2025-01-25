@@ -10,6 +10,8 @@ import { ExampleMiniGame } from "../MiniGames/ExampleMiniGame";
 
 export type GameProps = ComponentProps<"div">;
 
+const miniGames = [ExampleMiniGame];
+
 export function Game({ className, ...props }: GameProps) {
 	const [showWarning, setShowWarning] = useState(true);
 	const [messages, setMessages] = useState<Message[]>([]);
@@ -43,27 +45,29 @@ export function Game({ className, ...props }: GameProps) {
 			})),
 	);
 
+	const handleComplete = useCallback(function handleComplete(
+		result: MiniGameOutcome,
+	) {
+		setIsMiniGameActive(false);
+		setMiniGameResult(result);
+		setCurrentMiniGame(null);
+		setSurvivalTime((prev) => prev + 1);
+	}, []);
+
 	// Minigame trigger system
 	useEffect(() => {
 		if (!isPlaying || gameOver || isMiniGameActive) return;
 
 		// Trigger every 60 seconds (corrected from %10 to %60)
-		if (survivalTime > 0 && survivalTime % 30 === 0) {
+		if (survivalTime > 0 && survivalTime % 5 === 0) {
+			const difficulty = Math.floor(survivalTime / 60);
+			const MiniGame = miniGames[Math.floor(Math.random() * miniGames.length)];
 			setIsMiniGameActive(true);
 			setCurrentMiniGame(
-				<ExampleMiniGame
-					onComplete={(result) => {
-						setIsMiniGameActive(false);
-						setMiniGameResult(result);
-						setCurrentMiniGame(null);
-						// Always increment time to prevent retrigger
-						setSurvivalTime((prev) => prev + 1); // Add this line
-					}}
-					difficulty={Math.floor(survivalTime / 60)}
-				/>,
+				<MiniGame difficulty={difficulty} onComplete={handleComplete} />,
 			);
 		}
-	}, [survivalTime, isPlaying, gameOver, isMiniGameActive]);
+	}, [survivalTime, isPlaying, gameOver, isMiniGameActive, handleComplete]);
 
 	// Minigame outcome handler
 	useEffect(() => {
@@ -337,9 +341,7 @@ export function Game({ className, ...props }: GameProps) {
 									<div
 										className={cn(
 											"h-full rounded-full transition-all duration-300",
-											girl.happiness >= 50
-												? "bg-green-500/50"
-												: "bg-red-500/50",
+											girl.happiness >= 50 ? "bg-green-500" : "bg-red-500",
 										)}
 										style={{ width: `${girl.happiness}%` }}
 									/>
