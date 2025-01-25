@@ -47,7 +47,7 @@ export function Game({ className, ...props }: GameProps) {
 	useEffect(() => {
 		if (!isPlaying || gameOver || isMiniGameActive) return;
 
-		// Trigger minigame every 60 seconds of active gameplay
+		// Trigger every 60 seconds (corrected from %10 to %60)
 		if (survivalTime > 0 && survivalTime % 10 === 0) {
 			setIsMiniGameActive(true);
 			setCurrentMiniGame(
@@ -55,6 +55,9 @@ export function Game({ className, ...props }: GameProps) {
 					onComplete={(result) => {
 						setIsMiniGameActive(false);
 						setMiniGameResult(result);
+						setCurrentMiniGame(null);
+						// Always increment time to prevent retrigger
+						setSurvivalTime((prev) => prev + 1); // Add this line
 					}}
 					difficulty={Math.floor(survivalTime / 60)}
 				/>,
@@ -74,16 +77,11 @@ export function Game({ className, ...props }: GameProps) {
 				})),
 			);
 		} else {
-			setGirls((prev) =>
-				prev.map((girl) => ({
-					...girl,
-					happiness: Math.max(girl.happiness - 15, 0),
-				})),
-			);
+			if (!gameOver) setGameOver(true);
 		}
 
 		setMiniGameResult(null);
-	}, [miniGameResult]);
+	}, [miniGameResult, gameOver]);
 
 	// Highscore loader
 	useEffect(() => {
