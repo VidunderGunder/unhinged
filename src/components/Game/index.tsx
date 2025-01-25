@@ -5,6 +5,8 @@ import { repliesMap } from "./repliesMap";
 import { assets } from "./assets";
 import type { GirlState, Message } from "./types";
 import { Messages } from "./Messages";
+import type { MiniGameOutcome } from "../MiniGames/types";
+import { ExampleMiniGame } from "../MiniGames/ExampleMiniGame";
 
 export type GameProps = ComponentProps<"div">;
 
@@ -14,6 +16,12 @@ export function Game({ className, ...props }: GameProps) {
 	const [survivalTime, setSurvivalTime] = useState(0);
 	const [highscores, setHighscores] = useState<number[]>([]);
 	const [gameOver, setGameOver] = useState(false);
+	const [isMiniGameActive, setIsMiniGameActive] = useState(false);
+	const [currentMiniGame, setCurrentMiniGame] =
+		useState<React.ReactElement | null>(null);
+	const [miniGameResult, setMiniGameResult] = useState<MiniGameOutcome | null>(
+		null,
+	);
 
 	const [activeGirlIds, setActiveGirlIds] = useState([1, 2]);
 	const [isPlaying, setIsPlaying] = useState(false);
@@ -35,15 +43,57 @@ export function Game({ className, ...props }: GameProps) {
 			})),
 	);
 
-	// Load highscores
+	// Minigame trigger system
+	useEffect(() => {
+		if (!isPlaying || gameOver || isMiniGameActive) return;
+
+		// Trigger minigame every 60 seconds of active gameplay
+		if (survivalTime > 0 && survivalTime % 10 === 0) {
+			setIsMiniGameActive(true);
+			setCurrentMiniGame(
+				<ExampleMiniGame
+					onComplete={(result) => {
+						setIsMiniGameActive(false);
+						setMiniGameResult(result);
+					}}
+					difficulty={Math.floor(survivalTime / 60)}
+				/>,
+			);
+		}
+	}, [survivalTime, isPlaying, gameOver, isMiniGameActive]);
+
+	// Minigame outcome handler
+	useEffect(() => {
+		if (!miniGameResult) return;
+
+		if (miniGameResult === "success") {
+			setGirls((prev) =>
+				prev.map((girl) => ({
+					...girl,
+					happiness: Math.min(girl.happiness + 20, 100),
+				})),
+			);
+		} else {
+			setGirls((prev) =>
+				prev.map((girl) => ({
+					...girl,
+					happiness: Math.max(girl.happiness - 15, 0),
+				})),
+			);
+		}
+
+		setMiniGameResult(null);
+	}, [miniGameResult]);
+
+	// Highscore loader
 	useEffect(() => {
 		const saved = localStorage.getItem("highscores");
 		if (saved) setHighscores(JSON.parse(saved));
 	}, []);
 
-	// Add new girl every minute
+	// New girl adder
 	useEffect(() => {
-		if (!isPlaying || gameOver) return;
+		if (!isPlaying || gameOver || isMiniGameActive) return;
 		if (survivalTime > 0 && survivalTime % 30 === 0) {
 			setActiveGirlIds((prev) => {
 				if (prev.length >= assets.length) return prev;
@@ -51,9 +101,9 @@ export function Game({ className, ...props }: GameProps) {
 				return [...prev, nextId];
 			});
 		}
-	}, [survivalTime, gameOver, isPlaying]);
+	}, [survivalTime, gameOver, isPlaying, isMiniGameActive]);
 
-	// Update girls when activeGirlIds changes
+	// Girl state updater
 	useEffect(() => {
 		const currentGirlIds = girls.map((g) => g.id);
 		const newIds = activeGirlIds.filter((id) => !currentGirlIds.includes(id));
@@ -85,16 +135,16 @@ export function Game({ className, ...props }: GameProps) {
 
 	// Survival timer
 	useEffect(() => {
-		if (gameOver || !isPlaying) return;
+		if (gameOver || !isPlaying || isMiniGameActive) return;
 		const interval = setInterval(() => {
 			setSurvivalTime((prev) => prev + 1);
 		}, 1000);
 		return () => clearInterval(interval);
-	}, [gameOver, isPlaying]);
+	}, [gameOver, isPlaying, isMiniGameActive]);
 
-	// Message time left updates
+	// Message timer
 	useEffect(() => {
-		if (gameOver || !isPlaying) return;
+		if (gameOver || !isPlaying || isMiniGameActive) return;
 		const interval = setInterval(() => {
 			setMessages((prev) =>
 				prev.map((message) => ({
@@ -107,7 +157,7 @@ export function Game({ className, ...props }: GameProps) {
 			);
 		}, 100);
 		return () => clearInterval(interval);
-	}, [gameOver, isPlaying]);
+	}, [gameOver, isPlaying, isMiniGameActive]);
 
 	// Game over handler
 	useEffect(() => {
@@ -130,9 +180,9 @@ export function Game({ className, ...props }: GameProps) {
 			}));
 	}, []);
 
-	// Message generation
+	// Message generator
 	useEffect(() => {
-		if (gameOver || !isPlaying) return;
+		if (gameOver || !isPlaying || isMiniGameActive) return;
 
 		const messageInterval = setInterval(
 			() => {
@@ -159,9 +209,9 @@ export function Game({ className, ...props }: GameProps) {
 		);
 
 		return () => clearInterval(messageInterval);
-	}, [gameOver, getReplies, isPlaying]);
+	}, [gameOver, getReplies, isPlaying, isMiniGameActive]);
 
-	// Reply handling
+	// Reply handler
 	const handleReply = useCallback((id: number, correct: boolean) => {
 		if (!correct) {
 			setGameOver(true);
@@ -182,7 +232,7 @@ export function Game({ className, ...props }: GameProps) {
 		);
 	}, []);
 
-	// Girl clicking
+	// Girl click handler
 	const handleGirlClick = useCallback((id: number) => {
 		setGirls((prev) =>
 			prev.map((girl) =>
@@ -195,7 +245,7 @@ export function Game({ className, ...props }: GameProps) {
 
 	// Movement system
 	useEffect(() => {
-		if (gameOver || !isPlaying) return;
+		if (gameOver || !isPlaying || isMiniGameActive) return;
 
 		const moveInterval = setInterval(() => {
 			setGirls((prev) =>
@@ -219,11 +269,11 @@ export function Game({ className, ...props }: GameProps) {
 		}, 16);
 
 		return () => clearInterval(moveInterval);
-	}, [gameOver, isPlaying]);
+	}, [gameOver, isPlaying, isMiniGameActive]);
 
-	// Happiness depletion system
+	// Happiness depletion
 	useEffect(() => {
-		if (gameOver || !isPlaying) return;
+		if (gameOver || !isPlaying || isMiniGameActive) return;
 		const interval = setInterval(() => {
 			setGirls((prev) =>
 				prev.map((girl) => ({
@@ -233,7 +283,7 @@ export function Game({ className, ...props }: GameProps) {
 			);
 		}, 1000);
 		return () => clearInterval(interval);
-	}, [gameOver, isPlaying]);
+	}, [gameOver, isPlaying, isMiniGameActive]);
 
 	// Game over check
 	useEffect(() => {
@@ -332,7 +382,7 @@ export function Game({ className, ...props }: GameProps) {
 						<div className="mb-2 text-lg text-white">High Scores:</div>
 						<div className="select-none space-y-1">
 							{highscores.map((score, index) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: <meh>
+								// biome-ignore lint/suspicious/noArrayIndexKey: <It's okay>
 								<div key={index} className="text-white">
 									{index + 1}. {Math.floor(score / 60)}:
 									{String(score % 60).padStart(2, "0")}
@@ -368,6 +418,14 @@ export function Game({ className, ...props }: GameProps) {
 							Restart Game
 						</button>
 					</div>
+				</div>
+			)}
+
+			{currentMiniGame}
+
+			{isMiniGameActive && (
+				<div className="fixed top-4 right-4 z-50 rounded-lg bg-purple-900/90 p-3 text-sm text-white">
+					MINIGAME ACTIVE! 🔥
 				</div>
 			)}
 		</div>
