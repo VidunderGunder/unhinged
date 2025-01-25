@@ -45,7 +45,7 @@ export const repliesMap: RepliesMap = {
 		wrong: "Depends",
 	},
 	"Would you leave me for someone else? 💔": {
-		correct: ["I'd never leave you! 💞", "You're stuck with me forever! 💖"],
+		correct: ["I'd never leave you! 💞", "You're stuck with me! 💖"],
 		wrong: "Depends on who.",
 	},
 	"Are we still dating? 😟": {
