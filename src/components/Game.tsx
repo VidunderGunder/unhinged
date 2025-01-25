@@ -174,7 +174,7 @@ export function Game({ className, ...props }: GameProps) {
 					},
 				]);
 			},
-			Math.random() * 20000 + 10000,
+			Math.random() * 15 * 1000 + 7.5 * 1000,
 		);
 
 		return () => clearInterval(messageInterval);
@@ -329,30 +329,38 @@ export function Game({ className, ...props }: GameProps) {
 			{/* Messages */}
 			<div className="fixed right-0 bottom-0 left-0 z-30 flex flex-col items-center space-y-2 p-4">
 				{messages.map((message) => (
-					<div
-						key={message.id}
-						className="w-full max-w-md rounded-lg bg-gray-800 p-3 text-white shadow-lg"
-					>
-						<div className="mb-2 flex items-center justify-between">
-							<span className="text-sm">{message.text}</span>
+					<div key={message.id} className="w-full max-w-md space-y-3 px-4">
+						{/* Girl's Message */}
+						<div className="flex justify-start">
+							<div className="relative max-w-[85%] rounded-xl bg-gray-800 p-3 text-sm text-white shadow-md">
+								{/* Chat bubble tail */}
+								<div className="-left-1.5 absolute top-3 h-3 w-3 rotate-45 transform bg-gray-800" />
+								<div className="relative z-10">{message.text}</div>
+
+								{/* Time progress bar */}
+								<div className="-bottom-1 absolute right-0 left-0 h-1 rounded-full bg-gray-700">
+									<div
+										className="h-full rounded-full bg-blue-500 transition-all duration-100"
+										style={{ width: `${message.timeLeft}%` }}
+									/>
+								</div>
+							</div>
 						</div>
-						<div className="h-1 w-full overflow-hidden rounded-full bg-gray-600">
-							<div
-								className="h-full bg-blue-500 transition-all duration-100"
-								style={{ width: `${message.timeLeft}%` }}
-							/>
-						</div>
-						<div className="mt-2 flex gap-2">
+
+						{/* User Replies */}
+						<div className="space-y-2">
 							{message.replies.map((reply) => (
 								<button
 									key={reply.text}
 									type="button"
 									onClick={() => handleReply(message.id, reply.correct)}
-									className={cn(
-										"flex-1 rounded px-2 py-1 text-sm transition-colors",
-									)}
+									className="flex w-full justify-end"
 								>
-									{reply.text}
+									<div className="relative max-w-[85%] rounded-xl bg-blue-600 p-3 text-sm text-white shadow-md transition-colors hover:bg-blue-700">
+										{/* Chat bubble tail */}
+										<div className="-right-1.5 absolute top-3 h-3 w-3 rotate-45 transform bg-blue-600" />
+										<div className="relative z-10">{reply.text}</div>
+									</div>
 								</button>
 							))}
 						</div>
