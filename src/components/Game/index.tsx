@@ -48,7 +48,7 @@ export function Game({ className, ...props }: GameProps) {
 		if (!isPlaying || gameOver || isMiniGameActive) return;
 
 		// Trigger every 60 seconds (corrected from %10 to %60)
-		if (survivalTime > 0 && survivalTime % 10 === 0) {
+		if (survivalTime > 0 && survivalTime % 30 === 0) {
 			setIsMiniGameActive(true);
 			setCurrentMiniGame(
 				<ExampleMiniGame
