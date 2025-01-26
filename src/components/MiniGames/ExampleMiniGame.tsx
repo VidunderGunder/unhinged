@@ -1,7 +1,7 @@
 // src/components/MiniGames/ExampleMiniGame/index.tsx
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import type { MiniGameProps } from "../types";
+import type { MiniGameProps } from "./types";
 
 export function ExampleMiniGame({ onComplete, difficulty }: MiniGameProps) {
 	const [clicksRequired] = useState(Math.floor(3 + difficulty * 2));
@@ -42,10 +42,10 @@ export function ExampleMiniGame({ onComplete, difficulty }: MiniGameProps) {
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
 			<div className="relative rounded-xl border-4 border-purple-900 bg-gray-950 p-8 text-center">
 				<h2 className="mb-4 font-mono text-2xl text-purple-400">
-					CLICK OR DIE! 💀
+					MANIFEST OR DIE! 💀
 				</h2>
 				<p className="mb-4 text-white">
-					{clicksRequired - clicks} MORE EDGY CLICKS NEEDED
+					{clicksRequired - clicks} MORE MANIFESTATIONS NEEDED
 				</p>
 
 				<motion.button
@@ -55,7 +55,9 @@ export function ExampleMiniGame({ onComplete, difficulty }: MiniGameProps) {
 					disabled={completed}
 					className="rounded-lg bg-purple-600 px-6 py-3 font-bold text-white disabled:opacity-50"
 				>
-					{completed ? "⏳ PROCESSING..." : `💀 CLICK ME ${clicks} 💀`}
+					{completed
+						? "⏳ PROCESSING..."
+						: `💀 CLICK ME TO MANIFEST (${clicks}) 💀`}
 				</motion.button>
 
 				<div className="mt-4 text-purple-300">

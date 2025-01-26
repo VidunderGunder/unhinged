@@ -7,10 +7,11 @@ import type { GirlState, Message } from "./types";
 import { Messages } from "./Messages";
 import type { MiniGameOutcome } from "../MiniGames/types";
 import { ExampleMiniGame } from "../MiniGames/ExampleMiniGame";
+import { SSRiMiniGame } from "../MiniGames/SSRIMiniGame";
 
 export type GameProps = ComponentProps<"div">;
 
-const miniGames = [ExampleMiniGame];
+const miniGames = [ExampleMiniGame, SSRiMiniGame];
 
 export function Game({ className, ...props }: GameProps) {
 	const [showWarning, setShowWarning] = useState(true);
@@ -59,7 +60,7 @@ export function Game({ className, ...props }: GameProps) {
 		if (!isPlaying || gameOver || isMiniGameActive) return;
 
 		// Trigger every 60 seconds (corrected from %10 to %60)
-		if (survivalTime > 0 && survivalTime % 5 === 0) {
+		if (survivalTime > 0 && survivalTime % 15 === 0) {
 			const difficulty = Math.floor(survivalTime / 60);
 			const MiniGame = miniGames[Math.floor(Math.random() * miniGames.length)];
 			setIsMiniGameActive(true);
